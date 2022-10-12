@@ -1,0 +1,10 @@
+^F:\PROGRAMS\VSCODE\CPP\GRAPHICS_ASIGNMENT1\BUILD\CMAKEFILES\2E836CD20AC250852832D4B030D4069A\GENERATE.STAMP.RULE
+setlocal
+D:\CMake\bin\cmake.exe -SF:/Programs/VsCode/cpp/Graphics_asignment1 -BF:/Programs/VsCode/cpp/Graphics_asignment1/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file F:/Programs/VsCode/cpp/Graphics_asignment1/build/main.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
