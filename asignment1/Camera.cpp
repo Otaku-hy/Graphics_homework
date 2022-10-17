@@ -72,15 +72,14 @@ glm::mat4 Camera::ortho(const GLfloat left, const GLfloat right,
 	glm::mat4 ortho_scale = glm::mat4(1.f);
 	ortho_scale[0][0] = 2.f / std::abs(right - left);
 	ortho_scale[1][1] = 2.f / std::abs(top - bottom);
-	ortho_scale[2][2] = 2.f / std::abs(zNear - zFar);
+	ortho_scale[2][2] = -2.f / std::abs(zNear - zFar);
 
 	glm::mat4 ortho_trans = glm::mat4(1.f);
 	ortho_trans[3][0] = - (left + right) * 0.5f;
 	ortho_trans[3][1] = - (top + bottom) * 0.5f;
-	ortho_trans[3][2] = - (zFar + zNear) * 0.5f;
-	ortho_trans[2][2] = -1.f;
+	ortho_trans[3][2] = (zFar + zNear) * 0.5f;
 
-	return ortho_scale* ortho_trans;
+	return ortho_scale * ortho_trans;
 	//return glm::ortho(left,right,bottom,top);
 }
 
@@ -95,14 +94,14 @@ glm::mat4 Camera::perspective(const GLfloat fov, const GLfloat aspect_ratio,
 	glm::mat4 persp = glm::mat4(0.0f);
 	persp[0][0] = zNear;
 	persp[1][1] = zNear;
-	persp[2][2] = -std::abs(zNear + zFar);
+	persp[2][2] = std::abs(zNear + zFar);
 	persp[3][2] = zNear * zFar;
-	persp[2][3] = -1.f;
+	persp[2][3] = - 1.f;
 
 	glm::mat4 ortho = glm::mat4(1.f);
 	ortho[0][0] = 2.f / width;
 	ortho[1][1] = 2.f / height;
-	ortho[2][2] = 2.f / std::abs(zNear - zFar);
+	ortho[2][2] = - 2.f / std::abs(zNear - zFar);
 	ortho[3][2] = - (zNear + zFar) / std::abs(zNear - zFar);
 	
 	/*
@@ -117,8 +116,9 @@ glm::mat4 Camera::perspective(const GLfloat fov, const GLfloat aspect_ratio,
 	NDC_trans[1][3] = 0.5f;
 	NDC_trans[2][3] = 0.5f;
 	*/                           
-	//return ortho * persp;
-	return glm::perspective(fov,aspect,zNear,zFar);
+
+	return ortho * persp;
+	//return glm::perspective(fov,aspect,zNear,zFar);
 }
 
 glm::mat4 Camera::frustum(const GLfloat left, const GLfloat right,
