@@ -1,6 +1,6 @@
-^F:\PROGRAMS\VSCODE\CPP\GRAPHICS_ASIGNMENT1\CMAKELISTS.TXT
+^F:\PROGRAMS\VSCODE\CPP\GRAPHICS_HOMEWORK\ASIGNMENT1\CMAKELISTS.TXT
 setlocal
-D:\CMake\bin\cmake.exe -SF:/Programs/VsCode/cpp/Graphics_asignment1 -BF:/Programs/VsCode/cpp/Graphics_asignment1/build --check-stamp-file F:/Programs/VsCode/cpp/Graphics_asignment1/build/CMakeFiles/generate.stamp
+D:\CMake\bin\cmake.exe -SF:/Programs/VsCode/cpp/Graphics_homework/asignment1 -BF:/Programs/VsCode/cpp/Graphics_homework/asignment1/build --check-stamp-file F:/Programs/VsCode/cpp/Graphics_homework/asignment1/build/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone

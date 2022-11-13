@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 // 顶点着色器
 in vec3 vPosition;
@@ -14,6 +14,8 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
+layout(binding=0) uniform sampler2D shTex;
+
 void main() 
 {
 	//在TriMesh.cpp中的computeVertexNormals()已经求好了顶点坐标
@@ -25,7 +27,6 @@ void main()
 
 	// 由于model矩阵有可能为阴影矩阵，为了得到正确位置，我们需要做一次透视除法
 
-	//vec4 v2 = ;
 	// 考虑相机和投影矩阵
 	vec4 v3 = projection* view * v1;
 	

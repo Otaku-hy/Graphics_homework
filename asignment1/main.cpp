@@ -40,14 +40,85 @@ struct openGLObject
 openGLObject mesh_object;
 openGLObject plane_object;
 
+GLuint debugProgram;
+
+GLuint shadowProgram;
+GLuint shadowTex;
+GLuint shadowBuffer;
+GLuint shadowVAO,shadowVBO;
+glm::mat4 shadowVP;
+
 Light* light = new Light();
 TriMesh* mesh = new TriMesh();
 TriMesh* plane = new TriMesh();
 Camera* camera = new Camera(glm::vec3(0,0,-1),glm::vec3(0,0,0),glm::vec3(0,1,0));
 
+unsigned int quadVAO = 0;
+unsigned int quadVBO;
+void renderQuad()
+{
+    if (quadVAO == 0)
+    {
+        float quadVertices[] = {
+            // positions        // texture Coords
+            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+             1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        // setup plane VAO
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
+}
+
+void BindDataForShadowPass(TriMesh* mesh, openGLObject& object, GLuint& program)
+{
+	glGenVertexArrays(1, &shadowVAO);  	// 分配1个顶点数组对象
+	glBindVertexArray(shadowVAO);  	// 绑定顶点数组对象
+
+	// 创建并初始化顶点缓存对象
+	glGenBuffers(1, &shadowVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, shadowVBO);
+	glBufferData(GL_ARRAY_BUFFER, 
+		( mesh->getPoints().size() + mesh->getColors().size() + mesh->getNormals().size() ) * sizeof(glm::vec3),
+		NULL, 
+		GL_STATIC_DRAW);
+
+	glBufferSubData(GL_ARRAY_BUFFER, 0, mesh->getPoints().size() * sizeof(glm::vec3), &mesh->getPoints()[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, mesh->getPoints().size() * sizeof(glm::vec3), mesh->getColors().size() * sizeof(glm::vec3), &mesh->getColors()[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, (mesh->getPoints().size() + mesh->getColors().size()) * sizeof(glm::vec3), mesh->getNormals().size() * sizeof(glm::vec3), &mesh->getNormals()[0]);
+
+	GLuint pos_loc = glGetAttribLocation(program, "vPosition");
+	glEnableVertexAttribArray(pos_loc);
+	glVertexAttribPointer(pos_loc, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+
+	// 从顶点着色器中初始化顶点的颜色
+	GLuint color_loc = glGetAttribLocation(program, "vColor");
+	glEnableVertexAttribArray(color_loc);
+	glVertexAttribPointer(color_loc, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(mesh->getPoints().size() * sizeof(glm::vec3)));
+
+	GLuint norm_loc = glGetAttribLocation(program, "vNormal");
+	glEnableVertexAttribArray(norm_loc);
+	glVertexAttribPointer(norm_loc, 3, 
+		GL_FLOAT, GL_FALSE, 0, 
+		BUFFER_OFFSET( (mesh->getPoints().size() + mesh->getColors().size())  * sizeof(glm::vec3)));
+
 }
 
 void bindObjectAndData(TriMesh* mesh, openGLObject& object, const std::string &vshader, const std::string &fshader) {
@@ -94,6 +165,7 @@ void bindObjectAndData(TriMesh* mesh, openGLObject& object, const std::string &v
 	object.projectionLocation = glGetUniformLocation(object.program, "projection");
 
 	object.shadowLocation = glGetUniformLocation(object.program, "isShadow");
+
 }
 
 void bindLightAndMaterial(TriMesh* mesh, openGLObject& object, Light* light, Camera* camera) {
@@ -161,19 +233,105 @@ void init()
 	glClearColor(0.7, 0.7, 0.7, 1.0);
 }
 
+void InitShadowPass(GLFWwindow* window)
+{
+	int frame_dim_x,frame_dim_y;
+	glfwGetFramebufferSize(window,&frame_dim_x,&frame_dim_y);
 
-void display()
+	glGenFramebuffers(1,&shadowBuffer);
+
+	glGenTextures(1,&shadowTex);
+	glBindTexture(GL_TEXTURE_2D,shadowTex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, frame_dim_x, frame_dim_y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, frame_dim_x, frame_dim_y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowBuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowTex, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	std::string shadow_vshader,shadow_fshader;
+	shadow_vshader = "./shaders/svshader.glsl";
+	shadow_fshader = "./shaders/sfshader.glsl";
+
+	shadowProgram = InitShader(shadow_vshader.c_str(),shadow_fshader.c_str());
+	BindDataForShadowPass(mesh,mesh_object,shadowProgram);
+
+	std::string debug_vshader,debug_fshader;
+	debug_vshader = "./shaders/debugvshader.glsl";
+	debug_fshader = "./shaders/debugfshader.glsl";
+
+	debugProgram = InitShader(debug_vshader.c_str(),debug_fshader.c_str());
+}
+
+void ShadowPass()
+{
+	glBindVertexArray(shadowVAO);
+
+	glUseProgram(shadowProgram);
+
+	glm::vec3 lightLookDir = glm::normalize(glm::vec3(0,0,0) - light->getTranslation());
+	glm::vec3 lightUp = glm::cross(lightLookDir,glm::vec3(0,1,0)).length() != 0 ? glm::vec3(0,1,0) : glm::vec3(1,0,0);
+
+	glm::mat4 modelMatrix = mesh->getModelMatrix();
+	glm::mat4 lightViewMatrix = glm::lookAt(light->getTranslation(),glm::vec3(0,0,0),lightUp);
+	glm::mat4 lightProjectionMatrix = glm::perspective(45.f,1.f,0.5f,100.f);
+	// 传递矩阵
+	glUniformMatrix4fv(glGetUniformLocation(shadowProgram,"model"), 1, GL_FALSE, &modelMatrix[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(shadowProgram,"view"), 1, GL_FALSE, glm::value_ptr(lightViewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shadowProgram,"projection"), 1, GL_FALSE, glm::value_ptr(lightProjectionMatrix));
+
+	glDrawArrays(GL_TRIANGLES, 0, mesh->getPoints().size());
+
+	shadowVP = lightProjectionMatrix * lightViewMatrix;
+}
+
+
+void display(GLFWwindow* window)
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	GLsizei width,height;
+	glfwGetFramebufferSize(window,&width,&height);
 	// 相机矩阵计算
 	camera->updateCamera();
 	camera->viewMatrix = camera->getViewMatrix();
 	camera->projMatrix = camera->getProjectionMatrix();
 
-	glBindVertexArray(mesh_object.vao);
+	glBindFramebuffer(GL_FRAMEBUFFER,shadowBuffer);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	//glBindFramebuffer(GL_FRAMEBUFFER,0);	
+	
+	glDrawBuffer(GL_NONE);
+	glEnable(GL_DEPTH_TEST);
+	
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,shadowTex, 0);
+	glViewport(0,0,width,height);
 
+	ShadowPass();
+	glBindFramebuffer(GL_FRAMEBUFFER,0);
+
+	glViewport(0,0,width,height);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//glUseProgram(debugProgram);
+	//glUniform1i(glGetUniformLocation(debugProgram,"depthMap"),0);
+	glDrawBuffer(GL_FRONT);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D,shadowTex);
+
+	//renderQuad();
+	
 	glUseProgram(mesh_object.program);
+	glBindVertexArray(mesh_object.vao);	
 
 	// 物体的变换矩阵
 	glm::mat4 modelMatrix = mesh->getModelMatrix();
@@ -182,30 +340,33 @@ void display()
 	glUniformMatrix4fv(mesh_object.modelLocation, 1, GL_FALSE, &modelMatrix[0][0]);
 	glUniformMatrix4fv(mesh_object.viewLocation, 1, GL_FALSE, &camera->viewMatrix[0][0]);
 	glUniformMatrix4fv(mesh_object.projectionLocation, 1, GL_FALSE, &camera->projMatrix[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(mesh_object.program,"shadowVP"),1,GL_FALSE,glm::value_ptr(shadowVP));
 	// 将着色器 isShadow 设置为0，表示正常绘制的颜色，如果是1着表示阴影
 	glUniform1i(mesh_object.shadowLocation, 0);
-
+	glUniform1i(glGetUniformLocation(debugProgram,"shTex"),0);
 	// 将材质和光源数据传递给着色器
 	bindLightAndMaterial(mesh, mesh_object, light, camera);
 	// 绘制
 	glDrawArrays(GL_TRIANGLES, 0, mesh->getPoints().size());
     
 	// 绘制阴影
-	glm::vec3 light_pos = light->getTranslation();
-	float lx = light_pos[0];
-	float ly = light_pos[1];
-	float lz = light_pos[2];
-	glm::mat4 shadowProjMatrix(-ly, 0.0, 0.0, 0.0,
-		lx, 0.0, lz, 1.0,
-		0.0, 0.0, -ly, 0.0,
-		0.0, 0.0, 0.0, -ly);
+	// glm::vec3 light_pos = light->getTranslation();
+	// float lx = light_pos[0];
+	// float ly = light_pos[1];
+	// float lz = light_pos[2];
+	// glm::mat4 shadowProjMatrix(-ly, 0.0, 0.0, 0.0,
+	// 	lx, 0.0, lz, 1.0,
+	// 	0.0, 0.0, -ly, 0.0,
+	// 	0.0, 0.0, 0.0, -ly);
 	
-	modelMatrix = shadowProjMatrix * modelMatrix;
-	glUniform1i(mesh_object.shadowLocation, 1);
-	glUniformMatrix4fv(mesh_object.modelLocation, 1, GL_FALSE, &modelMatrix[0][0]);
-	glUniformMatrix4fv(mesh_object.viewLocation, 1, GL_FALSE, &camera->viewMatrix[0][0]);
-	glUniformMatrix4fv(mesh_object.projectionLocation, 1, GL_FALSE, &camera->projMatrix[0][0]);
-	glDrawArrays(GL_TRIANGLES, 0, mesh->getPoints().size());
+	// modelMatrix = shadowProjMatrix * modelMatrix;
+	// glUniform1i(mesh_object.shadowLocation, 1);
+	// glUniform1i(mesh_object.shadowLocation, 0);
+	// glUniformMatrix4fv(mesh_object.modelLocation, 1, GL_FALSE, &modelMatrix[0][0]);
+	// glUniformMatrix4fv(mesh_object.viewLocation, 1, GL_FALSE, &camera->viewMatrix[0][0]);
+	// glUniformMatrix4fv(mesh_object.projectionLocation, 1, GL_FALSE, &camera->projMatrix[0][0]);
+	// glUniformMatrix4fv(glGetUniformLocation(mesh_object.program,"shadowVP"),1,GL_FALSE,glm::value_ptr(shadowVP));
+	// glDrawArrays(GL_TRIANGLES, 0, mesh->getPoints().size());
 
 }
 
@@ -322,6 +483,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			pos.z = -ly;
 
 			light->setTranslation(pos);
+			std::cout << pos.x <<" "<<pos.y <<" "<<pos.z <<"  ";
 
 		// }
 	}
@@ -331,7 +493,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 int main(int argc, char **argv)
 {
 	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	
@@ -357,15 +519,16 @@ int main(int argc, char **argv)
     }
 	glEnable(GL_DEPTH_TEST);
 	mesh = new TriMesh();
-	mesh->readOff("./assets/sphere.off");
+	mesh->readOff("./assets/cow.off");
 	// Init mesh, shaders, buffer
 	init();
+	InitShadowPass(mainwindow);
     printHelp();
 	// bind callbacks
 	while (!glfwWindowShouldClose(mainwindow))
     {
         
-        display();
+        display(mainwindow);
         glfwSwapBuffers(mainwindow);
         glfwPollEvents();
 		
