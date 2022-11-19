@@ -285,7 +285,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh:
     erase(h);
     erase(h_twin);
 
-    //erase(e);   //remember to delete this line here
+    erase(e);  
 
     erase(f1);
     erase(f2);
