@@ -4,20 +4,56 @@
 
 bool Scene_Particles::Particle::update(const PT::Object& scene, float dt, float radius) {
 
-    // TODO(Animation): Task 4
+    auto ProjectLength = [](Vec3 normal, Vec3 dir)
+    {
+        return dot(normal,-dir);
+    };
 
-    // Compute the trajectory of this particle for the next dt seconds.
+    auto AdjustNormal = [](Vec3& normal, Vec3 dir)
+    {
+        if(dot(normal,-dir) < 0.f) 
+            normal = -1 * normal;
+    };
 
-    // (1) Build a ray representing the particle's path if it travelled at constant velocity.
+    float tLeft = dt; // time left for collision looping
+    float eps = 1e-3; // minimum time to continue loop
 
-    // (2) Intersect the ray with the scene and account for collisions. Be careful when placing
-    // collision points using the particle radius. Move the particle to its next position.
+    while(tLeft > 0) {
+        Ray ray(pos,velocity.unit());
 
-    // (3) Account for acceleration due to gravity.
+        auto intersection = scene.hit(ray);
+        AdjustNormal(intersection.normal,ray.dir);
+        
+        if(intersection.hit)
+        {
+            float v = velocity.norm();
+            if(eps * v + radius > intersection.distance)
+            {
+                velocity = velocity + 2 * ProjectLength(intersection.normal,velocity) * intersection.normal;
+            }
+            else
+            {
+                pos = pos + velocity * eps;
+                velocity = velocity + acceleration * eps;
+            }
+        }
+        else
+        {
+            pos = pos + velocity * tLeft;
+            velocity = velocity + acceleration * tLeft;
+            break;
+        }
+    // TODO: ray from particle origin; velocity is always unit
+    // TODO: how far the particle will travel
+    // TODO: hit something?
+    // TODO: if hit something?
+    // TODO: calculate new pos and velocity, and new simulation time.
+    // TODO: if not hit
+    // use Forward Euler to calculate new pos and velocity and break loop
+        tLeft -= eps;
+    }
 
-    // (4) Repeat until the entire time step has been consumed.
+    age -= dt;
 
-    // (5) Decrease the particle's age and return whether it should die.
-
-    return false;
+    return age > 0.f; // dead particle?
 }

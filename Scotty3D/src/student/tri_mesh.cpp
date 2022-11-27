@@ -26,16 +26,43 @@ Trace Triangle::hit(const Ray& ray) const {
     (void)v_1;
     (void)v_2;
 
-    // TODO (PathTracer): Task 2
-    // Intersect the ray with the triangle defined by the three vertices.
-
     Trace ret;
-    ret.origin = ray.point;
-    ret.hit = false;       // was there an intersection?
-    ret.distance = 0.0f;   // at what distance did the intersection occur?
-    ret.position = Vec3{}; // where was the intersection?
-    ret.normal = Vec3{};   // what was the surface normal at the intersection?
-                           // (this should be interpolated between the three vertex normals)
+    {
+        ret.origin = ray.point;
+        ret.hit = false;
+        ret.distance = 0.0f;
+        ret.position = Vec3{};
+        ret.normal = Vec3{}; 
+    }
+
+    Vec3 e1 = v_1.position - v_0.position;
+    Vec3 e2 = v_2.position - v_0.position;
+    Vec3 s = ray.point - v_0.position;
+
+    float denominator = dot(cross(e1, ray.dir), e2);
+
+    if(denominator == 0) {
+        return ret;
+    }
+    float inv_denom = 1 / denominator;
+
+    float u = -1 * dot(cross(s, e2), ray.dir) * inv_denom;
+    float v = dot(cross(e1, ray.dir), s) * inv_denom;
+    float t = -1 * dot(cross(s, e2), e1) * inv_denom;
+
+    if(u >= 0 && u <= 1 && v >= 0 && (v <= 1) & (u + v <= 1)) 
+    {
+        if(t >= ray.dist_bounds.x && t <= ray.dist_bounds.y) 
+        {
+            // calculate each parameter for Trace::ret
+            ret.hit = true;
+            ret.distance = t;
+            ret.position = ray.at(t);
+            ret.normal = (u * v_1.normal + v * v_2.normal + (1-u-v) * v_0.normal).normalize();
+            return ret;
+        }
+    }
+    
     return ret;
 }
 
