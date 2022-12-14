@@ -9,6 +9,13 @@
 
 namespace PT {
 
+float EvalMisWeight(float p1,int n1,float p2,int n2)
+{
+    float sum = p1 * n1 + p2 * n2;
+    if(sum == 0.f) return 0;
+    return p1 * n1 / sum;
+}
+
 Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
 
     // TODO (PathTracer): Task 1
@@ -19,15 +26,24 @@ Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
 
     // Tip: Use Rect::sample to get a new location each time trace_pixel is called
     // Tip: log_ray is useful for debugging
+    Vec2 size((float)1, (float)1);
+
+    Samplers::Rect rect(size);
+    //Samplers::Rect rect(x,y);
+     
+    Vec2 offset = rect.sample();
 
     Vec2 xy((float)x, (float)y);
+    Vec2 posOnFilm = xy + offset;
+
     Vec2 wh((float)out_w, (float)out_h);
 
-    Ray ray = camera.generate_ray(xy / wh);
+    Ray ray = camera.generate_ray(posOnFilm / wh);
     ray.depth = max_depth;
 
     // Pathtracer::trace() returns the incoming light split into emissive and reflected components.
     auto [emissive, reflected] = trace(ray);
+
     return emissive + reflected;
 }
 
@@ -51,8 +67,16 @@ Spectrum Pathtracer::sample_indirect_lighting(const Shading_Info& hit) {
     // You should only use the indirect component of incoming light (the second value returned
     // by Pathtracer::trace()), as the direct component will be computed in
     // Pathtracer::sample_direct_lighting().
-
     Spectrum radiance;
+
+    auto bsdfSample = hit.bsdf.scatter(hit.out_dir);
+    Vec3 rayDir = hit.object_to_world.rotate(bsdfSample.direction).unit();
+
+    Ray ray(hit.pos,rayDir,Vec2{0.001f,std::numeric_limits<float>::max()},hit.depth-1);
+    auto [emissive,indirect] = trace(ray);
+
+    radiance += indirect * bsdfSample.attenuation;
+
     return radiance;
 }
 
@@ -71,6 +95,36 @@ Spectrum Pathtracer::sample_direct_lighting(const Shading_Info& hit) {
     // Pathtracer::sample_indirect_lighting(), but instead accumulates the emissive component of
     // incoming light (the first value returned by Pathtracer::trace()). Note that since we only
     // want emissive, we can trace a ray with depth = 0.
+    {
+    auto bsdfSample = hit.bsdf.scatter(hit.out_dir);
+
+
+    Vec3 rayDir = hit.object_to_world.rotate(bsdfSample.direction).unit();
+
+    Ray ray(hit.pos,rayDir,Vec2{0.001f, std::numeric_limits<float>::max()},0);
+    auto [emissive,indirect] = trace(ray);
+
+    float pdf = hit.bsdf.pdf(hit.out_dir,bsdfSample.direction);
+    float lightPdf = area_lights_pdf(hit.pos,rayDir);   
+    float misWeight = EvalMisWeight(pdf,1,lightPdf,1);
+
+    radiance += emissive * bsdfSample.attenuation * misWeight;
+    }
+
+    {
+    Vec3 lightDir = sample_area_lights(hit.pos);
+    Vec3 localLightDir = hit.world_to_object.rotate(lightDir).unit();
+    float lightPdf = area_lights_pdf(hit.pos,lightDir);
+    if(lightPdf <= 0.f) return radiance;
+    Spectrum fr = hit.bsdf.evaluate(hit.out_dir,localLightDir);
+    Ray ray = Ray(hit.pos,lightDir,Vec2{0.001f, std::numeric_limits<float>::max()},0);
+    auto [emissive,indirect] = trace(ray);
+
+    float pdf = hit.bsdf.pdf(hit.out_dir,localLightDir);
+    float misWeight = EvalMisWeight(lightPdf,1,pdf,1);
+
+    radiance += emissive * fr / lightPdf * misWeight;
+    }
 
 #if TASK_4 == 1
     return radiance
@@ -131,7 +185,7 @@ std::pair<Spectrum, Spectrum> Pathtracer::trace(const Ray& ray) {
 
     // TODO (PathTracer): Task 4
     // You will want to change the default normal_colors in debug.h, or delete this early out.
-    if(debug_data.normal_colors) return {Spectrum::direction(result.normal), {}};
+    //if(debug_data.normal_colors) return {Spectrum::direction(result.normal), {}};
 
     // If the BSDF is emissive, stop tracing and return the emitted light
     Spectrum emissive = bsdf.emissive();

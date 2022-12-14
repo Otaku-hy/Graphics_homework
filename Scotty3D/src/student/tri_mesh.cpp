@@ -59,6 +59,7 @@ Trace Triangle::hit(const Ray& ray) const {
             ret.distance = t;
             ret.position = ray.at(t);
             ret.normal = (u * v_1.normal + v * v_2.normal + (1-u-v) * v_0.normal).normalize();
+
             return ret;
         }
     }

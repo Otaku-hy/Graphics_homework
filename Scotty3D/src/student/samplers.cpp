@@ -10,8 +10,12 @@ Vec2 Rect::sample() const {
 
     // Generate a uniformly random point on a rectangle of size size.x * size.y
     // Tip: RNG::unit()
+    float Xi1 = RNG::unit();
+    float Xi2 = RNG::unit();
+    auto X1 = Xi1 * size.x;
+    auto Y1 = Xi2 * size.y;
 
-    return Vec2{};
+    return Vec2{X1, Y1};
 }
 
 Vec3 Sphere::Uniform::sample() const {
